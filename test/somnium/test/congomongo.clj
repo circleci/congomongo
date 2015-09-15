@@ -5,7 +5,7 @@
         somnium.congomongo.coerce
         clojure.pprint)
   (:use [clojure.data.json :only (read-str write-str)])
-  (:import [com.mongodb MongoClient DB DBObject BasicDBObject BasicDBObjectBuilder MongoException$DuplicateKey
+  (:import [com.mongodb MongoClient DB DBObject BasicDBObject BasicDBObjectBuilder DuplicateKeyException
             ReadPreference
             WriteConcern]
            [org.bson.types ObjectId]))
@@ -578,9 +578,9 @@
     (try
       (insert! :sparse-index-coll {})
       (is true)
-      (catch MongoException$DuplicateKey e
+      (catch DuplicateKeyException e
         (is false "Unable to insert second document without the sparse index key")))
-    (is (thrown? MongoException$DuplicateKey
+    (is (thrown? DuplicateKeyException
                  (insert! :sparse-index-coll {:a "foo"})))
     (set-write-concern *mongo-config* :unacknowledged)))
 
