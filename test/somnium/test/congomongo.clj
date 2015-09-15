@@ -372,7 +372,6 @@
           (when mongo3?
             (is (= "key1_1_key2_-1" (-> plan :queryPlanner :winningPlan :inputStage :indexName)))))))))
 
-
 (deftest fetch-by-id-of-any-type
   (with-test-mongo
     (insert! :by-id {:_id "Blarney" :val "Stone"})
