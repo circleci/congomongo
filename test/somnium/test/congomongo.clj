@@ -1,4 +1,5 @@
 (ns somnium.test.congomongo
+  (:require [clojure.string :as string])
   (:use clojure.test
         somnium.congomongo
         somnium.congomongo.config
@@ -288,7 +289,12 @@
                       (.command "buildInfo")
                       (.getString "version"))
           mongo2? (-> version (.startsWith "2"))
-          mongo3? (-> version (.startsWith "3"))]
+          mongo3? (-> version (.startsWith "3"))
+
+          query-index (fn [plan]
+                        (cond
+                          mongo2? (some-> plan :cursor (string/split #"\s+" 2) second)
+                          mongo3? (some-> plan :queryPlanner :winningPlan :inputStage :indexName)))]
 
       ;; only 1 versions
       (is (or mongo2? mongo3?))
@@ -302,59 +308,35 @@
 
       (testing "index1"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint "key1_1"))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_1" (query-index plan)))))
 
       (testing "index1 seq"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint [:key1]))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_1" (query-index plan)))))
 
       (testing "index2"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint "key1_1_key2_1"))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1_key2_1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_1_key2_1" (query-index plan)))))
 
       (testing "index2 seq"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint [:key1 :key2]))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1_key2_1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_1_key2_1" (query-index plan)))))
 
       (testing "index3"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint "key1_-1"))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_-1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_-1" (query-index plan)))))
 
       (testing "index3 seq"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint [[:key1 -1]]))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_-1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_-1" (query-index plan)))))
 
       (testing "index4"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint "key1_1_key2_-1"))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1_key2_-1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_1_key2_-1" (query-index plan)))))
 
       (testing "index4 seq"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint [:key1 [:key2 -1]]))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1_key2_-1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false)))))))
+          (is (= "key1_1_key2_-1" (query-index plan))))))))
 
 
 (deftest fetch-by-id-of-any-type
