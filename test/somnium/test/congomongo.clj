@@ -872,3 +872,23 @@ function ()
     (create-collection! :with-write-concern )
     (set-collection-write-concern! :with-write-concern :unacknowledged )
     (is (= WriteConcern/UNACKNOWLEDGED (get-collection-write-concern :with-write-concern )))))
+
+(defn- mongo-client-version []
+  (->> (ClassLoader/getSystemClassLoader)
+       (.getURLs )
+       (map #(.getPath %))
+       (map clojure.java.io/file)
+       (map #(.getName %))
+       (filter #(.startsWith % "mongo-java-driver"))
+       first
+       (re-matches #"mongo-java-driver-(\d+\.\d+\.\d+)\.jar")
+       second))
+
+(deftest mongo-bug-JAVA-1970-canary
+  (testing "will fail when JAVA-1970 is fixed in mongo driver 3.0.x"
+    (when (-> (mongo-client-version) (.startsWith "3"))
+      (with-test-mongo
+        (let [db (-> *mongo-config* :mongo (.getDB test-db))]
+          (is (thrown? NullPointerException (.createCollection db
+                                                               "no-options-so-deferred-creation"
+                                                               nil))))))))
