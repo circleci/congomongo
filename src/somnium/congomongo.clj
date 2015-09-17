@@ -228,7 +228,6 @@ releases.  Please use 'make-connection' in combination with
 
 (def write-concern-map
   {:acknowledged         WriteConcern/ACKNOWLEDGED
-   :errors-ignored       WriteConcern/ERRORS_IGNORED
    :fsynced              WriteConcern/FSYNCED
    :journaled            WriteConcern/JOURNALED
    :majority             WriteConcern/MAJORITY
@@ -237,7 +236,6 @@ releases.  Please use 'make-connection' in combination with
    ;; these are pre-2.10.x names for write concern:
    :fsync-safe    WriteConcern/FSYNC_SAFE  ;; deprecated - use :fsynced
    :journal-safe  WriteConcern/JOURNAL_SAFE ;; deprecated - use :journaled
-   :none          WriteConcern/NONE ;; deprecated - use :errors-ignored
    :normal        WriteConcern/NORMAL ;; deprecated - use :unacknowledged
    :replicas-safe WriteConcern/REPLICAS_SAFE ;; deprecated - use :replica-acknowledged
    :safe          WriteConcern/SAFE ;; deprecated - use :acknowledged
@@ -288,8 +286,7 @@ releases.  Please use 'make-connection' in combination with
 (defn db-ref
   "Convenience DBRef constructor."
   [ns id]
-  (DBRef. (get-db *mongo-config*)
-          ^String (named ns)
+  (DBRef. ^String (named ns)
           ^Object id))
 
 (defn db-ref? [x]
@@ -335,23 +332,33 @@ releases.  Please use 'make-connection' in combination with
 
 (def ^:private read-preference-map
   "Private map of facory functions of ReadPreferences to aliases."
-  {:nearest (fn nearest ([] (ReadPreference/nearest)) ([first-tag remaining-tags] (ReadPreference/nearest first-tag remaining-tags)))
-   :primary (fn primary ([] (ReadPreference/primary)) ([_ _] (throw (IllegalArgumentException. "Read preference :primary does not accept tag sets."))))
-   :primary-preferred (fn primary-preferred ([] (ReadPreference/primaryPreferred)) ([first-tag remaining-tags] (ReadPreference/primaryPreferred first-tag remaining-tags)))
-   :secondary (fn secondary ([] (ReadPreference/secondary)) ([first-tag remaining-tags] (ReadPreference/secondary first-tag remaining-tags)))
-   :secondary-preferred (fn secondary-preferred ([] (ReadPreference/secondaryPreferred)) ([first-tag remaining-tags] (ReadPreference/secondaryPreferred first-tag remaining-tags)))})
+  {:nearest (fn nearest ([] (ReadPreference/nearest)) ([tags] (ReadPreference/nearest tags)))
+   :primary (fn primary ([] (ReadPreference/primary)) ([_] (throw (IllegalArgumentException. "Read preference :primary does not accept tag sets."))))
+   :primary-preferred (fn primary-preferred ([] (ReadPreference/primaryPreferred)) ([tags] (ReadPreference/primaryPreferred tags)))
+   :secondary (fn secondary ([] (ReadPreference/secondary)) ([tags] (ReadPreference/secondary tags)))
+   :secondary-preferred (fn secondary-preferred ([] (ReadPreference/secondaryPreferred)) ([tags] (ReadPreference/secondaryPreferred tags)))})
+
+(defn named?
+  [x]
+  (instance? clojure.lang.Named x))
+
+(defn ->tagset
+  [tag]
+  (letfn [(->tag [[k v]]
+            (com.mongodb.Tag. (if (named? k) (name k) (str k))
+                              (if (named? v) (name v) (str v))))]
+    (com.mongodb.TagSet. (map ->tag tag))))
+
 
 (defn read-preference
   "Creates a ReadPreference from an alias and optional tag sets. Valid aliases are :nearest,
    :primary, :primary-preferred, :secondary and :secondary-preferred."
-  {:arglists '([preference {:first-tag "value"} {:other-tag-set "other-value"}])}
+  {:arglists '([preference {:first-tag "value", :second-tag "second-value"} {:other-tag-set "other-value"}])}
   [preference & tags]
   (if-let [pref-factory (get read-preference-map preference)]
     (if (empty? tags)
       (pref-factory)
-      (pref-factory
-        (coerce (first tags) [:clojure :mongo ])
-        (into-array com.mongodb.DBObject (coerce (rest tags) [:clojure :mongo ] :many true)))
+      (pref-factory (map ->tagset tags))
       )
     (throw (IllegalArgumentException. (str preference " is not a valid ReadPreference alias.")))))
 
@@ -601,7 +608,7 @@ You should use fetch with :limit 1 instead."))); one? and sort should NEVER be c
    [c f & {:keys [name unique sparse background]
            :or {name nil unique false sparse false background false}}]
    (-> (get-coll c)
-       (.ensureIndex (coerce-index-fields f) ^DBObject (coerce (merge {:unique unique :sparse sparse :background background}
+       (.createIndex (coerce-index-fields f) ^DBObject (coerce (merge {:unique unique :sparse sparse :background background}
                                                                        (if name {:name name}))
                                                                 [:clojure :mongo]))))
 (defn drop-index!

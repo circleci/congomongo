@@ -5,7 +5,8 @@
         somnium.congomongo.coerce
         clojure.pprint)
   (:use [clojure.data.json :only (read-str write-str)])
-  (:import [com.mongodb MongoClient DB DBObject BasicDBObject BasicDBObjectBuilder MongoException$DuplicateKey
+  (:import [com.mongodb MongoClient DB DBObject BasicDBObject BasicDBObjectBuilder DuplicateKeyException
+                        Tag TagSet
             ReadPreference
             WriteConcern]))
 
@@ -562,9 +563,9 @@
     (try
       (insert! :sparse-index-coll {})
       (is true)
-      (catch MongoException$DuplicateKey e
+      (catch DuplicateKeyException e
         (is false "Unable to insert second document without the sparse index key")))
-    (is (thrown? MongoException$DuplicateKey
+    (is (thrown? DuplicateKeyException
                  (insert! :sparse-index-coll {:a "foo"})))
     (set-write-concern *mongo-config* :unacknowledged)))
 
@@ -847,20 +848,19 @@ function ()
 
 
 (deftest test-read-preference
-  (let [^DBObject f-tag (BasicDBObject. "location" "nearby")
-        r-tags (into-array DBObject [(BasicDBObject. "rack" "bottom")])
-        empty-tags (into-array DBObject [])]
+  (let [f-tag (TagSet. (Tag. "location" "nearby"))
+        r-tags (TagSet. (Tag. "rack" "bottom"))]
     (are [expected type tags] (= expected (apply read-preference (cons type tags)))
       (ReadPreference/nearest) :nearest nil
-      (ReadPreference/nearest f-tag empty-tags) :nearest [{:location "nearby"}]
-      (ReadPreference/nearest f-tag r-tags) :nearest [{:location "nearby"} {:rack :bottom}]
+      (ReadPreference/nearest f-tag) :nearest [{:location "nearby"}]
+      (ReadPreference/nearest [f-tag r-tags]) :nearest [{:location "nearby"} {:rack :bottom}]
       (ReadPreference/primary) :primary nil
       (ReadPreference/primaryPreferred) :primary-preferred nil
-      (ReadPreference/primaryPreferred f-tag empty-tags) :primary-preferred [{:location "nearby"}]
-      (ReadPreference/primaryPreferred f-tag r-tags) :primary-preferred [{:location "nearby"} {:rack :bottom}]
+      (ReadPreference/primaryPreferred f-tag) :primary-preferred [{:location "nearby"}]
+      (ReadPreference/primaryPreferred [f-tag r-tags]) :primary-preferred [{:location "nearby"} {:rack :bottom}]
       (ReadPreference/secondary) :secondary nil
-      (ReadPreference/secondary f-tag empty-tags) :secondary [{:location "nearby"}]
-      (ReadPreference/secondary f-tag r-tags) :secondary [{:location "nearby"} {:rack :bottom}]
+      (ReadPreference/secondary f-tag) :secondary [{:location "nearby"}]
+      (ReadPreference/secondary [f-tag r-tags]) :secondary [{:location "nearby"} {:rack :bottom}]
       (ReadPreference/secondaryPreferred) :secondary-preferred nil
       )))
 
