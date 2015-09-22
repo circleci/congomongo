@@ -73,6 +73,22 @@
       (finally
         (teardown!)))))
 
+(defn- version
+  [db]
+  (-> *mongo-config*
+      :mongo
+      (.getDB db)
+      (.command "buildInfo")
+      (.getString "version")))
+
+(defn- mongo2?
+  [db]
+  (-> (version db) (.startsWith "2")))
+
+(defn- mongo3?
+  [db]
+  (-> (version db) (.startsWith "3")))
+
 (deftest options-on-connections
   (with-test-mongo
     ;; set some non-default option values
@@ -283,13 +299,8 @@
 
 (deftest fetch-with-hint-changes-index
   (with-test-mongo
-    (let [version (-> *mongo-config*
-                      :mongo
-                      (.getDB test-db)
-                      (.command "buildInfo")
-                      (.getString "version"))
-          mongo2? (-> version (.startsWith "2"))
-          mongo3? (-> version (.startsWith "3"))
+    (let [mongo2? (mongo2? test-db)
+          mongo3? (mongo3? test-db)
 
           query-index (fn [plan]
                         (cond
