@@ -892,12 +892,18 @@ You should use fetch with :limit 1 instead."))); one? and sort should NEVER be c
   [coll & {:keys [key keyfn reducefn where finalizefn initial as]
            :or {key nil keyfn nil reducefn nil where nil finalizefn nil
                 initial nil as :clojure}}]
-  (coerce (.group ^DBCollection
-            (get-coll coll)
-            ^DBObject
-            (coerce (into {} (filter second {:key (when key (coerce-fields key))
-                     :$keyf keyfn
-                     :$reduce reducefn
-                     :finalize finalizefn
-                     :initial initial
-                     :cond where})) [:clojure :mongo ])) [:mongo as]))
+  ;; Using the raw command interface because GroupCommand objects don't support
+  ;; key functions - https://jira.mongodb.org/browse/JAVA-1979
+  (let [raw-command (coerce
+                      {:group (into {}
+                                (filter second
+                                  {:ns (name coll)
+                                   :key (when key (coerce-fields key))
+                                   :$keyf keyfn
+                                   :$reduce reducefn
+                                   :finalize finalizefn
+                                   :initial initial
+                                   :cond where}))} [:clojure :mongo])
+        result (.command ^DB (get-db *mongo-config*) ^DBObject raw-command)]
+    (coerce (.get result "retval")
+            [:mongo as])))
