@@ -123,10 +123,10 @@
 
 (def ^{:dynamic true
        :doc "Mapping of [from to] pairs to translation functions for coerce."}
-     *translations* {[:clojure :mongo  ] clojure->mongo
-                     [:clojure :json   ] write-str
-                     [:mongo   :clojure] #(mongo->clojure ^DBObject % ^boolean *keywordize*)
-                     [:mongo   :json   ] #(.toString ^DBObject %)
+     *translations* {[:clojure :mongo  ] #'clojure->mongo
+                     [:clojure :json   ] #'write-str
+                     [:mongo   :clojure] #(mongo->clojure ^DBObject % ^Boolean/TYPE *keywordize*)
+                     [:mongo   :json   ] #(JSON/serialize %)
                      [:json    :clojure] #(read-str % :key-fn (if *keywordize*
                                                                 keyword
                                                                 identity))
