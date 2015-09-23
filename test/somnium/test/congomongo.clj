@@ -1,11 +1,13 @@
 (ns somnium.test.congomongo
+  (:require [clojure.string :as string])
   (:use clojure.test
         somnium.congomongo
         somnium.congomongo.config
         somnium.congomongo.coerce
         clojure.pprint)
   (:use [clojure.data.json :only (read-str write-str)])
-  (:import [com.mongodb MongoClient DB DBObject BasicDBObject BasicDBObjectBuilder DuplicateKeyException
+  (:import [com.mongodb MongoClient DB DBObject BasicDBObject BasicDBObjectBuilder
+                        DuplicateKeyException MongoCommandException
                         Tag TagSet
             ReadPreference
             WriteConcern]))
@@ -50,11 +52,13 @@
   (doseq [^String coll (collections)]
     (when-not (.startsWith coll "system")
       (drop-coll! coll))))
+
 (defn setup! []
   (mongo! :db test-db :host test-db-host :port test-db-port)
   (when (and test-db-user test-db-pass)
     (authenticate test-db-user test-db-pass)
     (drop-test-collections!)))
+
 (defn teardown! []
   (if (and test-db-user test-db-pass)
     (try ; some tests don't authenticate so ignore failures here:
@@ -65,22 +69,40 @@
 (defmacro with-test-mongo [& body]
   `(do
      (setup!)
-     ~@body
-     (teardown!)))
+     (try
+      ~@body
+      (finally
+        (teardown!)))))
+
+(defn- version
+  [db]
+  (-> *mongo-config*
+      :mongo
+      (.getDB db)
+      (.command "buildInfo")
+      (.getString "version")))
+
+(defn- mongo2?
+  [db]
+  (-> (version db) (.startsWith "2")))
+
+(defn- mongo3?
+  [db]
+  (-> (version db) (.startsWith "3")))
 
 (deftest options-on-connections
   (with-test-mongo
     ;; set some non-default option values
     (let [a (make-connection "congomongotest-db-a" :host test-db-host :port test-db-port
-                             (mongo-options :auto-connect-retry true
+                             (mongo-options :connect-timeout 500
                                             :write-concern (:acknowledged write-concern-map)))
          ^MongoClient m (:mongo a)
-          opts (.getMongoOptions m)]
+          opts (.getMongoClientOptions m)]
       ;; check non-default options attached to Mongo object
-      (is (.isAutoConnectRetry opts))
+      (is (= 500 (.getConnectTimeout opts)))
       (is (= WriteConcern/ACKNOWLEDGED (.getWriteConcern opts)))
       ;; check a default option as well
-      (is (not (.slaveOk opts))))))
+      (is (= (ReadPreference/primary) (.getReadPreference opts))))))
 
 (deftest uri-for-connection
   (with-test-mongo
@@ -278,13 +300,13 @@
 
 (deftest fetch-with-hint-changes-index
   (with-test-mongo
-    (let [version (-> *mongo-config*
-                      :mongo
-                      (.getDB test-db)
-                      (.command "buildInfo")
-                      (.getString "version"))
-          mongo2? (-> version (.startsWith "2"))
-          mongo3? (-> version (.startsWith "3"))]
+    (let [mongo2? (mongo2? test-db)
+          mongo3? (mongo3? test-db)
+
+          query-index (fn [plan]
+                        (cond
+                          mongo2? (some-> plan :cursor (string/split #"\s+" 2) second)
+                          mongo3? (some-> plan :queryPlanner :winningPlan :inputStage :indexName)))]
 
       ;; only 1 versions
       (is (or mongo2? mongo3?))
@@ -298,59 +320,35 @@
 
       (testing "index1"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint "key1_1"))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_1" (query-index plan)))))
 
       (testing "index1 seq"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint [:key1]))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_1" (query-index plan)))))
 
       (testing "index2"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint "key1_1_key2_1"))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1_key2_1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_1_key2_1" (query-index plan)))))
 
       (testing "index2 seq"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint [:key1 :key2]))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1_key2_1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_1_key2_1" (query-index plan)))))
 
       (testing "index3"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint "key1_-1"))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_-1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_-1" (query-index plan)))))
 
       (testing "index3 seq"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint [[:key1 -1]]))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_-1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_-1" (query-index plan)))))
 
       (testing "index4"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint "key1_1_key2_-1"))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1_key2_-1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false))))
+          (is (= "key1_1_key2_-1" (query-index plan)))))
 
       (testing "index4 seq"
         (let [plan (-> (fetch :test_col :where {:key1 1} :explain? true :hint [:key1 [:key2 -1]]))]
-          (when mongo2?
-            (is (= "BtreeCursor key1_1_key2_-1" (-> plan :cursor))))
-          (when mongo3?  ;; TODO
-            (is false)))))))
+          (is (= "key1_1_key2_-1" (query-index plan))))))))
 
 
 (deftest fetch-by-id-of-any-type
@@ -875,3 +873,41 @@ function ()
     (create-collection! :with-write-concern )
     (set-collection-write-concern! :with-write-concern :unacknowledged )
     (is (= WriteConcern/UNACKNOWLEDGED (get-collection-write-concern :with-write-concern )))))
+
+(defn- mongo-client-version []
+  (->> (ClassLoader/getSystemClassLoader)
+       (.getURLs )
+       (map #(.getPath %))
+       (map clojure.java.io/file)
+       (map #(.getName %))
+       (filter #(.startsWith % "mongo-java-driver"))
+       first
+       (re-matches #"mongo-java-driver-(\d+\.\d+\.\d+)\.jar")
+       second))
+
+(deftest mongo-bug-JAVA-1970-canary
+  (testing "will fail when JAVA-1970 is fixed in mongo driver 3.0.x"
+    (when (-> (mongo-client-version) (.startsWith "3"))
+      (with-test-mongo
+        (let [db (-> *mongo-config* :mongo (.getDB test-db))]
+          (is (thrown? NullPointerException (.createCollection db
+                                                               "no-options-so-deferred-creation"
+                                                               nil))))))))
+
+(deftest mongo-bug-JAVA-1971-canary
+  (testing "will fail when JAVA-1971 is fixed in mongo driver 3.0.x"
+    (with-test-mongo
+      (when (and (-> (mongo-client-version) (.startsWith "3"))
+                 (not (-> (version test-db) (.startsWith "2.4."))))
+        (insert! :test_col {:key1 1})
+
+        ;; Add key1 asc index
+        (.createIndex (get-coll :test_col)
+                      (coerce {:key1 1} [:clojure :mongo])
+                      (coerce {:unique false :sparse false :background false} [:clojure :mongo]))
+
+        ;; Add key1 desc index, fails until JAVA-1971 is fixed
+        (is (thrown-with-msg? MongoCommandException #"Trying to create an index with same name key1_ with different key spec \{ key1: -1 \}"
+          (.createIndex (get-coll :test_col)
+                        (coerce {:key1 -1} [:clojure :mongo])
+                        (coerce {:unique false :sparse false :background false} [:clojure :mongo])))) ))))
