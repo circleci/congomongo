@@ -1,5 +1,5 @@
 (defproject circleci/congomongo
-  "0.4.6"
+  "0.5.0"
   :description "Clojure-friendly API for MongoDB"
   :url "https://github.com/aboekhoff/congomongo"
   :mailing-list {:name "CongoMongo mailing list"
