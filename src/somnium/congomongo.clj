@@ -114,13 +114,11 @@
   (when (not= (some? username) (some? password))
     (throw (IllegalArgumentException. "Username and password must both be supplied for authenticated connections")))
 
-  (let [addresses (->> (if (keyword? (first instances))
-                         (list (apply array-map instances)) ; Handle legacy connect args
-                         instances)
-                    (map (fn [{:keys [host port] :or {host "127.0.0.1" port 27017}}]
-                           (make-server-address host port))))
-        ^MongoClientOptions options (or options (mongo-options))
+  (let [addresses (map (fn [{:keys [host port] :or {host "127.0.0.1" port 27017}}]
+                        (make-server-address host port))
+                       (or instances {:host "127.0.0.1" :port 27017}))
 
+        ^MongoClientOptions options (or options (mongo-options))
 
         mongo (cond
                 (and username password) (make-mongo-client
@@ -164,13 +162,11 @@
                    :username username
                    :password password]
                [mongo-client-uri])}
-  ([db]
-    (make-connection db {}))
-  ([db & args]
-    (let [^String dbname (named db)]
-      (if (.startsWith dbname "mongodb://")
-        (make-connection-uri dbname)
-        (make-connection-args dbname (apply hash-map args))))))
+  [db & {:as args}]
+  (let [^String dbname (named db)]
+    (if (.startsWith dbname "mongodb://")
+      (make-connection-uri dbname)
+      (make-connection-args dbname args))))
 
 (defn connection?
   "Returns truth if the argument is a map specifying an active connection."
