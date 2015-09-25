@@ -112,8 +112,8 @@
 (defn- make-connection-args
   "Makes a connection with passed database name, host, port and MongoClientOptions"
   [db {:keys [instances options username password]}]
-  (when (or username password)
-    (assert (and username password) "Username and password must be supplied for authenticated connections"))
+  (when (not= (some? username) (some? password))
+    (throw (IllegalArgumentException. "Username and password must both be supplied for authenticated connections")))
 
   (let [addresses (->> (if (keyword? (first instances))
                          (list (apply array-map instances)) ; Handle legacy connect args
