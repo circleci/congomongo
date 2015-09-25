@@ -9,6 +9,16 @@ For Clojure 1.2.1 and earlier, use CongoMongo 0.2.3 or earlier. CongoMongo 0.2.3
 
 News
 --------------
+Version 0.5.0 - Sep 25th, 2015
+
+Updated to support mongo-java-driver 3.0+ which enables use of TLS connections.
+Authentication has changed significantly in the 3.0 driver which necessitated some breaking API changes around connecting and authenticating.
+
+BREAKING CHANGES IN THIS RELEASE!
+* Usernames and passwords for authenticated connections must be supplied to `make-connection` rather than authenticating after the connection has been created. The `make-connection` API has been changed to accomodate this. Optional parameters (instances, Mongo options, username and password) are now passed via keyword args.
+* The `authenticate` function has been removed.
+* The deprecated `mongo!` function has been removed. Use `(set-connection (make-connection ...))`
+
 Version 0.4.6 - Jul 29th, 2015
 
 * Add support for hints on fetches
