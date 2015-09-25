@@ -8,7 +8,6 @@ A toolkit for using MongoDB with Clojure.
 This library is using an outdated version of the MongoDB Java driver and it will likely take some time before we get around to upgrading it. **If you are starting up a new project with MongoDB and Clojure, we would recommend looking at [Monger](http://clojuremongodb.info/) which is well-maintained and extremely well-documented!**
 
 
-
 Releases and Dependency Information
 ----------------------------------------
 
@@ -265,6 +264,15 @@ Developer information
 
 Change Log
 ----------
+Version 0.6.0 - Aug 31st, 2018
+
+Updated to support mongo-java-driver 3.0+ which enables use of TLS connections.
+Authentication has changed significantly in the 3.0 driver which necessitated some breaking API changes around connecting and authenticating.
+
+BREAKING CHANGES IN THIS RELEASE!
+* Usernames and passwords for authenticated connections must be supplied to `make-connection` rather than authenticating after the connection has been created. The `make-connection` API has been changed to accomodate this. Optional parameters (instances, Mongo options, username and password) are now passed via keyword args.
+* The `authenticate` function has been removed.
+* The deprecated `mongo!` function has been removed. Use `(set-connection (make-connection ...))`
 
 Version 0.5.3 - Aug 30, 2018
 
