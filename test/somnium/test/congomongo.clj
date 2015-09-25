@@ -187,6 +187,19 @@
 
           (close-connection conn))))))
 
+(deftest make-connection-variations
+  (testing "No optional arguments"
+    (is (make-connection test-db)))
+
+  (testing "Username/password combinations"
+    (is (thrown-with-msg? IllegalArgumentException #"Username and password must both be supplied"
+          (make-connection test-db :username "foo" :password nil)))
+
+    (is (thrown-with-msg? IllegalArgumentException #"Username and password must both be supplied"
+          (make-connection test-db :username nil :password "bar")))
+
+    (is (make-connection test-db :username nil :password nil))))
+
 (deftest options-on-connections
   (with-test-mongo
     ;; set some non-default option values
