@@ -165,7 +165,7 @@
           (close-connection conn)))
 
       (testing "credentials with Mongo URIs"
-        (let [conn (make-connection (format "mongodb://test_user:test_password@127.0.0.1:27017/%s" test-db))]
+        (let [conn (make-connection (format "mongodb://test_user:test_password@%s:%s/%s" test-db-host test-db-port test-db))]
           ;; Just validate that we can interact with the DB, the 3.0 Mongo driver
           ;; has removed any way to check if a connection is authenticated.
           (with-mongo conn
@@ -180,7 +180,7 @@
         ;; out due to invalid credentials.
         ;; Unlike MongoClient, http://api.mongodb.org/java/current/com/mongodb/MongoClientURI.html
         ;; does not allow the server selection timeout to be set
-        (let [conn (make-connection (format "mongodb://invalid_user:test_password@127.0.0.1:27017/%s" test-db))]
+        (let [conn (make-connection (format "mongodb://invalid_user:test_password@%s:%s/%s" test-db-host test-db-port test-db))]
           (is (thrown? MongoException
                        (with-mongo conn
                          (insert! :thingies {:foo 1}))))

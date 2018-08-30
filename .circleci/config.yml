@@ -1,0 +1,79 @@
+version: 2.0
+references:
+  docker_images: &docker_images
+    - image: clojure:lein-2.8.1
+    - image: mongo:3.2-jessie
+      command: mongod --smallfiles
+
+  working_directory: &working_directory
+    working_directory: ~/congomongo
+
+jobs:
+  test-library:
+    docker: *docker_images
+
+    <<: *working_directory
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-jars-{{ checksum "project.clj" }}
+            - v1-jars-
+
+      - run: lein test2junit
+
+      - save_cache:
+          key: v1-jars-{{ checksum "project.clj" }}
+          paths:
+            - ~/.m2
+
+      - store_test_results:
+          path: test2junit/xml
+
+      - store_artifacts:
+          path: test2junit
+          destination: test2junit
+
+  deploy-library:
+    docker: *docker_images
+
+    <<: *working_directory
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-jars-{{ checksum "project.clj" }}
+            - v1-jars-
+
+      - run: lein uberjar
+
+      - run:
+          name: Deploying library
+          command: |
+            lein version-spec
+            lein deploy circle-s3
+
+workflows:
+  version: 2
+  build_test_deploy:
+    jobs:
+      - test-library:
+          context: org-global
+
+      - deploy-library:
+          context: org-global
+          requires:
+            - test-library
+          filters:
+            branches:
+              only: master
+
+experimental:
+  notify:
+    branches:
+      only:
+        - master
