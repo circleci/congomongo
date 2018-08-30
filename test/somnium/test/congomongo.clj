@@ -223,7 +223,7 @@
           opts (.getMongoOptions m)]
       (testing "make-connection parses options from URI"
         (is (= 123 (.getConnectionsPerHost opts)))
-        (is (= WriteConcern/ACKNOWLEDGED (.getWriteConcern opts))))
+        (is (= WriteConcern/W1 (.getWriteConcern opts))))
       (with-mongo a
         (testing "make-connection accepts Mongo URI"
                 (is (= "congomongotest-db-a" (.getName ^DB (*mongo-config* :db)))))))))
@@ -1010,17 +1010,17 @@ function ()
        (re-matches #"mongo-java-driver-(\d+\.\d+\.\d+)\.jar")
        second))
 
-(deftest mongo-bug-JAVA-1970-canary
-  (testing "will fail when JAVA-1970 is fixed in mongo driver 3.0.x"
+(deftest deffered-collection-creation
+  (testing "deffered collection creation"
     (when (-> (mongo-client-version) (.startsWith "3"))
       (with-test-mongo
         (let [db (-> *mongo-config* :mongo (.getDB test-db))]
-          (is (thrown? NullPointerException (.createCollection db
-                                                               "no-options-so-deferred-creation"
-                                                               nil))))))))
+          (.createCollection db
+                             "no-options-so-deferred-creation"
+                             nil))))))
 
-(deftest mongo-bug-JAVA-1971-canary
-  (testing "will fail when JAVA-1971 is fixed in mongo driver 3.0.x"
+(deftest index-name-generating
+  (testing "auto name generation for index"
     (with-test-mongo
       (when (and (-> (mongo-client-version) (.startsWith "3"))
                  (not (-> (version test-db) (.startsWith "2.4."))))
@@ -1031,8 +1031,7 @@ function ()
                       (coerce {:key1 1} [:clojure :mongo])
                       (coerce {:unique false :sparse false :background false} [:clojure :mongo]))
 
-        ;; Add key1 desc index, fails until JAVA-1971 is fixed
-        (is (thrown-with-msg? MongoCommandException #"Trying to create an index with same name key1_ with different key spec \{ key1: -1 \}"
-          (.createIndex (get-coll :test_col)
-                        (coerce {:key1 -1} [:clojure :mongo])
-                        (coerce {:unique false :sparse false :background false} [:clojure :mongo])))) ))))
+        ;; Add key1 desc index
+        (.createIndex (get-coll :test_col)
+                      (coerce {:key1 -1} [:clojure :mongo])
+                      (coerce {:unique false :sparse false :background false} [:clojure :mongo])) ))))
