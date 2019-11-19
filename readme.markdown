@@ -275,6 +275,13 @@ Developer information
 
 Change Log
 ----------
+Version 1.2.0 - November 13, 2019
+* Added support for authentication source using one of the following authentication mechanisms:
+  AuthenticationMechanism.PLAIN, 
+  AuthenticationMechanism.SCRAM_SHA_1,
+  AuthenticationMechanism.SCRAM_SHA_256
+* Updated mongo-java-driver to 3.10.2
+
 Version 1.1.0 - Apr 8, 2019
 Added ability to specify timeout for fetch and fetch-and-modify operations.
 
