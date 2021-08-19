@@ -263,20 +263,10 @@ When with-mongo and set-connection! interact, last one wins"
 
 (def write-concern-map
   {:acknowledged         WriteConcern/ACKNOWLEDGED
-   :fsynced              WriteConcern/FSYNCED
    :journaled            WriteConcern/JOURNALED
    :majority             WriteConcern/MAJORITY
-   :replica-acknowledged WriteConcern/REPLICA_ACKNOWLEDGED
+   ;; :replica-acknowledged WriteConcern/REPLICA_ACKNOWLEDGED ;; TODO "Prefer WriteConcern#W2"
    :unacknowledged       WriteConcern/UNACKNOWLEDGED
-   ;; these are pre-2.10.x names for write concern:
-   :fsync-safe    WriteConcern/FSYNC_SAFE  ;; deprecated - use :fsynced
-   :journal-safe  WriteConcern/JOURNAL_SAFE ;; deprecated - use :journaled
-   :normal        WriteConcern/NORMAL ;; deprecated - use :unacknowledged
-   :replicas-safe WriteConcern/REPLICAS_SAFE ;; deprecated - use :replica-acknowledged
-   :safe          WriteConcern/SAFE ;; deprecated - use :acknowledged
-   ;; these are left for backward compatibility but are deprecated:
-   :replica-safe WriteConcern/REPLICAS_SAFE
-   :strict       WriteConcern/SAFE
    })
 
 (defn set-write-concern
@@ -349,20 +339,6 @@ When with-mongo and set-connection! interact, last one wins"
   (.createCollection (get-db *mongo-config*)
                      ^String (named collection)
                      (coerce options [:clojure :mongo])))
-
-(def query-option-map
-  {:tailable    Bytes/QUERYOPTION_TAILABLE
-   :slaveok     Bytes/QUERYOPTION_SLAVEOK
-   :oplogreplay Bytes/QUERYOPTION_OPLOGREPLAY
-   :notimeout   Bytes/QUERYOPTION_NOTIMEOUT
-   :awaitdata   Bytes/QUERYOPTION_AWAITDATA})
-
-(defn calculate-query-options
-  "Calculates the cursor's query option from a list of options"
-   [options]
-   (reduce bit-or 0 (map query-option-map (if (keyword? options)
-                                            (list options)
-                                            options))))
 
 (def ^:private read-preference-map
   "Private map of facory functions of ReadPreferences to aliases."
@@ -483,7 +459,6 @@ You should use fetch with :limit 1 instead."))); one? and sort should NEVER be c
                                         ; (with negative limit) doesn't match expectations therefore changed to keep limit as is.
           n-limit (or limit 0)
           n-sort (when sort (coerce sort [from :mongo]))
-          n-options (calculate-query-options options)
           n-preferences (cond
                           (nil? read-preferences) nil
                           (instance? ReadPreference read-preferences) read-preferences
@@ -507,8 +482,15 @@ You should use fetch with :limit 1 instead."))); one? and sort should NEVER be c
                    (if (string? hint)
                      (.hint cursor ^String hint)
                      (.hint cursor ^DBObject (coerce-index-fields hint))))
-                 (when n-options
-                   (.setOptions cursor n-options))
+                 (when (:tailable options)
+                   (.cursorType cursor CursorType/Tailable))
+                 (when (or (:secondary-preferred options) (:slaveok options))
+                   (.setReadPreference cursor (ReadPreference/secondaryPreferred)))
+                 (when (:oplog options)
+                   (.oplogReplay cursor true))
+                 (when (:notimeout options)
+                   (.noCursorTimeout cursor true))
+                 ;; TODO: (:awaitdata options) (the replacement for this is not so clear)
                  (when n-sort
                    (.sort cursor n-sort))
                  (when skip
@@ -725,8 +707,10 @@ You should use fetch with :limit 1 instead."))); one? and sort should NEVER be c
         {:keys [from to] :or {from :clojure to :clojure}} from-and-to
         cursor (.aggregate (get-coll coll)
                            ^java.util.List (coerce (conj ops op) [from :mongo])
+                           ;; TODO can probably just delete this?
                            ^AggregationOptions (-> (AggregationOptions/builder)
-                                                   (.outputMode AggregationOptions$OutputMode/CURSOR)
+                                                   ;; "There is no replacement for this. Applications can assume that the driver will use a cursor for server versions that support it (>= 2.6). The driver will ignore this as of MongoDB 3.6, which does not support inline results for the aggregate command."
+                                                   ;; (.outputMode AggregationOptions$OutputMode/CURSOR)
                                                    (.build)))]
     {:serverUsed (.toString (.getServerAddress cursor))
      :result (coerce cursor [:mongo to] :many true)

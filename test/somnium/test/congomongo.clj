@@ -285,15 +285,6 @@
           (close-connection a)
           (is (= nil *mongo-config*)))))))
 
-(deftest query-options
-  (are [x y] (= (calculate-query-options x) y)
-       nil 0
-       [] 0
-       [:tailable] 2
-       [:tailable :slaveok] 6
-       [:tailable :slaveok :notimeout] 22
-       :notimeout 16))
-
 (deftest fetch-with-options
   (with-test-mongo
     (insert! :thingies {:foo 1})
