@@ -28,12 +28,11 @@
             [somnium.congomongo.coerce :refer [coerce coerce-fields coerce-index-fields]])
   (:import [com.mongodb MongoClient MongoClientOptions MongoClientOptions$Builder
                         MongoClientURI MongoCredential
-                        DB DBCollection DBObject DBRef ServerAddress ReadPreference WriteConcern Bytes
-                        AggregationOptions AggregationOptions$OutputMode
-                        GroupCommand
+                        DB DBCollection CursorType DBObject DBRef
+                        ServerAddress ReadPreference WriteConcern
+                        AggregationOptions
                         MapReduceCommand MapReduceCommand$OutputType]
            [com.mongodb.gridfs GridFS]
-           [com.mongodb.util JSON]
            [org.bson.types ObjectId]
            (java.util.concurrent TimeUnit)))
 
