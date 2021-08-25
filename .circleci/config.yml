@@ -1,0 +1,27 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: cimg/clojure:1.10.1
+      - image: mongo:3.6
+    steps:
+      - checkout
+      - run: lein test
+
+  release:
+    docker:
+      - image: cimg/clojure:1.10.1
+    steps:
+      - checkout
+      - run: lein deploy
+
+workflows:
+  ci:
+    jobs:
+      - test
+      - release:
+          requires: [test]
+          filters:
+            branches:
+              only: master
