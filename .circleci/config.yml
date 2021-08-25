@@ -8,3 +8,19 @@ jobs:
     steps:
       - checkout
       - run: lein test
+
+  release:
+    docker:
+      - image: cimg/clojure:1.10.1
+    steps:
+      - checkout
+      - run: lein deploy clojars
+
+workflows:
+  ci:
+    jobs:
+      - build
+      - release:
+          filters:
+            branches:
+              only: master

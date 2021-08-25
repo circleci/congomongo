@@ -1,5 +1,5 @@
-(defproject congomongo
-  "2.2.2"
+(defproject circleci/congomongo
+  "2.2.3-SNAPSHOT"
   :description "Clojure-friendly API for MongoDB"
   :url "https://github.com/congomongo/congomongo"
   :mailing-list {:name "CongoMongo mailing list"
@@ -13,6 +13,9 @@
                  [org.mongodb/mongo-java-driver "3.10.2"]
                  [org.clojure/clojure "1.10.1" :scope "provided"]]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org" :creds :gpg}}
+  :repositories [["snapshots" {:url "https://repo.clojars.org"
+                               :username :env
+                               :password :env}]]
   ;; if a :dev profile is added, remember to update :aliases below to
   ;; use it in each with-profile group!
   :profiles {:1.9 {:dependencies [[org.clojure/clojure "1.9.0"]]}
