@@ -96,10 +96,10 @@
 
 (defn- make-mongo-client
   (^com.mongodb.MongoClient
-   [addresses creds options]
-    (if (> (count addresses) 1)
-      (MongoClient. ^java.util.List addresses creds options)
-      (MongoClient. ^ServerAddress (first addresses) creds options)))
+   [addresses cred options]
+   (if (> (count addresses) 1)
+     (MongoClient. ^java.util.List addresses cred options)
+     (MongoClient. ^ServerAddress (first addresses) cred options)))
 
   (^com.mongodb.MongoClient
    [addresses options]
@@ -142,7 +142,7 @@
                                         (MongoCredential/createCredential username db (.toCharArray password))))
 
         mongo (if credential
-                (make-mongo-client addresses [credential] options)
+                (make-mongo-client addresses credential options)
                 (make-mongo-client addresses options))
 
         n-db (if db (.getDB mongo db) nil)]
@@ -264,9 +264,8 @@ When with-mongo and set-connection! interact, last one wins"
   {:acknowledged         WriteConcern/ACKNOWLEDGED
    :journaled            WriteConcern/JOURNALED
    :majority             WriteConcern/MAJORITY
-   ;; :replica-acknowledged WriteConcern/REPLICA_ACKNOWLEDGED ;; TODO "Prefer WriteConcern#W2"
-   :unacknowledged       WriteConcern/UNACKNOWLEDGED
-   })
+   :replica-acknowledged WriteConcern/W2
+   :unacknowledged       WriteConcern/UNACKNOWLEDGED})
 
 (defn set-write-concern
   "Sets the write concern on the connection. Setting is a key in the
@@ -390,6 +389,20 @@ When with-mongo and set-connection! interact, last one wins"
   [collection]
   (.getReadPreference (get-coll collection)))
 
+(defn set-options!
+  "sets the options on the cursor"
+  [cursor {:keys [tailable secondary-preferred slaveok oplog notimeout awaitdata]}]
+  (when tailable
+    (.cursorType cursor CursorType/Tailable))
+  (when awaitdata
+    (.cursorType cursor CursorType/TailableAwait))
+  (when (or secondary-preferred slaveok)
+    (.setReadPreference cursor (ReadPreference/secondaryPreferred)))
+  (when oplog
+    (.oplogReplay cursor true))
+  (when notimeout
+    (.noCursorTimeout cursor true)))
+
 (defn fetch
   "Fetches objects from a collection.
    Note that MongoDB always adds the _id and _ns
@@ -463,7 +476,7 @@ You should use fetch with :limit 1 instead."))); one? and sort should NEVER be c
                           (instance? ReadPreference read-preferences) read-preferences
                           :else (somnium.congomongo/read-preference read-preferences))]
       (cond
-        count? (.getCount n-col n-where n-only)
+        count? (.getCount n-col n-where)
 
         ;; The find command isn't documented so there's no nice way to build a
         ;; find command that adds read-preferences when necessary
@@ -479,17 +492,21 @@ You should use fetch with :limit 1 instead."))); one? and sort should NEVER be c
                    (.setReadPreference cursor n-preferences))
                  (when hint
                    (if (string? hint)
-                     (.hint cursor ^String hint)
+                     ;; hint no longer supports strings
+                     ;; .hintString exists for DBCollectionCountOptions but not
+                     ;; for DBCursor. It would be possible to hack support by
+                     ;; creating a DBCollectionCountOptions that is not used
+                     ;; except for setting a hint string on it and getting the
+                     ;; hint out as an object. For now follow the mongo
+                     ;; deprecation and let this be a place where we don't have
+                     ;; backwards compatibility. They have also added the string
+                     ;; hint functionality back into the non-legacy client so it
+                     ;; is possible that support will be restored via the java
+                     ;; client.
+                     (throw (IllegalArgumentException. "String hints are not currently supported. Use a seq instead."))
                      (.hint cursor ^DBObject (coerce-index-fields hint))))
-                 (when (:tailable options)
-                   (.cursorType cursor CursorType/Tailable))
-                 (when (or (:secondary-preferred options) (:slaveok options))
-                   (.setReadPreference cursor (ReadPreference/secondaryPreferred)))
-                 (when (:oplog options)
-                   (.oplogReplay cursor true))
-                 (when (:notimeout options)
-                   (.noCursorTimeout cursor true))
-                 ;; TODO: (:awaitdata options) (the replacement for this is not so clear)
+                 (when options
+                   (set-options! cursor options))
                  (when n-sort
                    (.sort cursor n-sort))
                  (when skip
@@ -706,10 +723,7 @@ You should use fetch with :limit 1 instead."))); one? and sort should NEVER be c
         {:keys [from to] :or {from :clojure to :clojure}} from-and-to
         cursor (.aggregate (get-coll coll)
                            ^java.util.List (coerce (conj ops op) [from :mongo])
-                           ;; TODO can probably just delete this?
                            ^AggregationOptions (-> (AggregationOptions/builder)
-                                                   ;; "There is no replacement for this. Applications can assume that the driver will use a cursor for server versions that support it (>= 2.6). The driver will ignore this as of MongoDB 3.6, which does not support inline results for the aggregate command."
-                                                   ;; (.outputMode AggregationOptions$OutputMode/CURSOR)
                                                    (.build)))]
     {:serverUsed (.toString (.getServerAddress cursor))
      :result (coerce cursor [:mongo to] :many true)
