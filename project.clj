@@ -1,5 +1,5 @@
 (defproject circleci/congomongo
-  "2.2.3-SNAPSHOT"
+  "2.2.3.1" ;; the upstream version is 2.2.3
   :description "Clojure-friendly API for MongoDB"
   :url "https://github.com/congomongo/congomongo"
   :mailing-list {:name "CongoMongo mailing list"
