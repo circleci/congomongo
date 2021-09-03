@@ -12,8 +12,11 @@
   :dependencies [[org.clojure/data.json "0.2.7"]
                  [org.mongodb/mongodb-driver-legacy "4.3.1"]
                  [org.clojure/clojure "1.10.1" :scope "provided"]]
-  :deploy-repositories {"releases" {:url "https://repo.clojars.org" :creds :gpg}}
-  :repositories [["snapshots" {:url "https://repo.clojars.org"
+  :repositories [["releases" {:url "https://repo.clojars.org"
+                              :sign-releases false
+                              :username :env
+                              :password :env}]
+                 ["snapshots" {:url "https://repo.clojars.org"
                                :username :env
                                :password :env}]]
   ;; if a :dev profile is added, remember to update :aliases below to
