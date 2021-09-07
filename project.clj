@@ -14,11 +14,11 @@
                  [org.clojure/clojure "1.10.1" :scope "provided"]]
   :repositories [["releases" {:url "https://repo.clojars.org"
                               :sign-releases false
-                              :username :env
-                              :password :env}]
+                              :username :env/clojars_username
+                              :password :env/clojars_token}]
                  ["snapshots" {:url "https://repo.clojars.org"
-                               :username :env
-                               :password :env}]]
+                               :username :env/clojars_username
+                               :password :env/clojars_token}]]
   ;; if a :dev profile is added, remember to update :aliases below to
   ;; use it in each with-profile group!
   :profiles {:1.9 {:dependencies [[org.clojure/clojure "1.9.0"]]}
